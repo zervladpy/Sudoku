@@ -1,6 +1,9 @@
 package com.zersoft.sudokugame;
 
+import java.awt.*;
 import java.io.Serializable;
+import java.sql.Array;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,9 +58,8 @@ public final class Sudoku implements Serializable {
     private Set<Character> extractAlphabet(char[][] table) {
         Set<Character> alphabetSet = new HashSet<>();
 
-        for (int i = 0; i < table.length; i++) {
-            for (int j = 0; j < table[i].length; j++) {
-                char cellValue = table[i][j];
+        for (char[] chars : table) {
+            for (char cellValue : chars) {
                 if (cellValue != (char) 0) {
                     alphabetSet.add(cellValue);
                 }
@@ -96,44 +98,99 @@ public final class Sudoku implements Serializable {
         return table[i][j];
     }
 
+    private int getChildSize() {
+        return (int) Math.sqrt(table.length);
+    }
+
     public boolean isComplete() {
-        for (int i = 0; i < table.length; i++) {
-            for (int j = 0; j < table.length; j++) {
-                if (getField(i, j) == (char) 0) {
-                    return false;
-                }
+        Point voidCell = getNextCellVoid();
 
-            }
+        return voidCell.x == table.length + 1;
 
-        }
-
-        return true;
     }
 
     public boolean isValid() {
 
+        // TODO: add isValid method
+
+        return false;
+    }
+
+    public Point getNextCellVoid() {
         for (int i = 0; i < table.length; i++) {
-
-            Set<Character> row = new HashSet<>(getSize());
-            Set<Character> col = new HashSet<>(getSize());
-
             for (int j = 0; j < table.length; j++) {
-                row.add((char) getField(i, j));
-                col.add((char) getField(j, i));
+                if (table[i][j] == (char) 0) {
+                    return new Point(i, j);
+                }
+            }
+        }
+        return new Point(table.length +1, table.length +1);
+     }
+
+     private List<Integer> getStartChildPos() {
+
+        List<Integer> startPos = new ArrayList<>();
+
+        int size = getChildSize();
+
+         for (int i = 0; i < table.length + 1 ; i = i + size) {
+            startPos.add(i);
+         }
+
+        return startPos;
+     }
+
+    public List<Sudoku> getChildren() throws NoSuchMethodException {
+        List<Sudoku> sudokuChild = new ArrayList<>();
+
+        if (isComplete()) {
+            return sudokuChild;
+        }
+
+
+        Point voidCell = getNextCellVoid();
+
+        Set<Character> row = new HashSet<>(alphabet.size());
+
+        for (int rowChar = 0; rowChar < table.length ; rowChar++) {
+            row.add(table[rowChar][voidCell.y]);
+        }
+
+        Set<Character> col = new HashSet<>(alphabet.size());
+
+        for (int colChar = 0; colChar < table.length; colChar++) {
+            col.add(table[voidCell.y][colChar]);
+        }
+
+
+        Set<Character> child = new HashSet<>(alphabet.size());
+        Point startPoint = new Point(-1, -1);
+        List<Integer> listChildStartPos = getStartChildPos();
+
+        for (int startPos : listChildStartPos) {
+
+            if (startPos >= voidCell.x && voidCell.x < startPos + getChildSize()) {
+                startPoint.setLocation(startPos, startPoint.y);
             }
 
-            if (row.size() != getSize() || col.size() != getSize()) {
-                return false;
+            if (startPos >= voidCell.y && voidCell.y < startPos + getChildSize()) {
+                startPoint.setLocation(startPoint.x, startPos);
             }
 
         }
 
-        return true;
-    }
+        for (int i = startPoint.x; i < startPoint.x + getChildSize(); i++) {
 
-    public List<Sudoku> getChildren() throws NoSuchMethodException {
-        // TODO: crete method
-        throw new NoSuchMethodException();
+            for (int j = startPoint.y; j < startPoint.y + getChildSize(); j++) {
+
+                child.add(table[i][j]);
+
+            }
+        }
+
+
+        return sudokuChild;
+
     }
 
     public boolean saveSudoku(String pathName) {
@@ -143,7 +200,22 @@ public final class Sudoku implements Serializable {
 
     @Override
     public String toString() {
-        return super.toString();
+
+        StringBuilder sb = new StringBuilder();
+
+        for (char[] chars : table) {
+            for (int j = 0; j < table.length; j++) {
+
+                if (chars[j] == (char) 0) {
+                    sb.append(" ");
+                }else {
+                    sb.append(chars[j]);
+                }
+            }
+            sb.append(System.lineSeparator());
+        }
+
+        return sb.toString();
     }
 
 }
