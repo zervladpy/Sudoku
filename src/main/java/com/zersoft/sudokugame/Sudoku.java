@@ -1,6 +1,9 @@
 package com.zersoft.sudokugame;
 
 import java.awt.*;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -9,10 +12,13 @@ import java.util.Set;
 
 public final class Sudoku implements Serializable {
 
-    final private Set<Character> DEFAULT_ALPHABET = Set.of((char) 1, (char) 2, (char) 3, (char) 4, (char) 5, (char) 6, (char) 7, (char) 8, (char) 9);
-
+    final private Set<Character> DEFAULT_ALPHABET;
     private Set<Character> alphabet;
     private char[][] table;
+
+    {
+        DEFAULT_ALPHABET = Set.of((char) 1, (char) 2, (char) 3, (char) 4, (char) 5, (char) 6, (char) 7, (char) 8, (char) 9);
+    }
 
     /**
      * Default constructor<br>
@@ -27,8 +33,7 @@ public final class Sudoku implements Serializable {
     }
 
     /**
-     * @param alphabet
-     * @throws Exception
+     * @param alphabet chars that will compose Sudoku Alphabet instead of default
      */
     public Sudoku (char[] alphabet) throws Exception {
 
@@ -48,16 +53,15 @@ public final class Sudoku implements Serializable {
     }
 
     /**
-     * @param table
-     * @throws Exception
+     * @param table char[][] array that will compose the sudoku field
      */
     public Sudoku (char[][] table) throws Exception {
         setTable(table);
     }
 
     /**
-     * @param size
-     * @return
+     * @param size Create a new Sudoku from an int Size. alphabet setted as (char) integers
+     * @return new created table poblated with empty characters
      */
     private char[][] defaultTableSetup (int size) {
         char[][] newTable = new char[size][size];
@@ -116,6 +120,15 @@ public final class Sudoku implements Serializable {
 
         this.table = table;
 
+        for (int row = 0; row < table.length; row++) {
+            for (int col = 0; col < table.length; col++) {
+                char field = getField(row, col);
+                if (Character.isWhitespace(field)) {
+                    this.table[row][col] = (char) 0;
+                }
+            }
+        }
+
         alphabet = extractAlphabet(table);
     }
 
@@ -140,10 +153,13 @@ public final class Sudoku implements Serializable {
     /**
      * @return int miniSudoku length
      */
-    private int getChildSize () {
+    private int getSubgridSize () {
         return (int) Math.sqrt(table.length);
     }
 
+    /**
+     * @return If void cell return true
+     */
     public boolean isComplete () {
         Point voidCell = getNextCellVoid();
 
@@ -151,18 +167,86 @@ public final class Sudoku implements Serializable {
 
     }
 
+    /**
+     * @return if Sudoku was completed correctly
+     */
     public boolean isValid () {
 
-        // TODO: add isValid method
+        if (!checkColRowValid()) {
+            return false;
+        }
 
-        return false;
+        var subgridPoints = getSubgridStartPositions();
+
+        for (Point subgridPoint : subgridPoints) {
+            if (!checkSubgrid(subgridPoint)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
+    /**
+     * @return List of Point for all Subgrid start positions
+     */
+    private List<Point> getSubgridStartPositions () {
+        List<Point> startPositions = new ArrayList<>();
+        for (int row = 0; row < getSize(); row = row + getSubgridSize()) {
+            for (int col = 0; col < getSize(); col = col + getSubgridSize()) {
+                startPositions.add(new Point(row, col));
+            }
+        }
+        return startPositions;
+
+    }
+
+
+    /**
+     * @param startPos Subgrid start position
+     * @return true if is valid
+     */
+    private boolean checkSubgrid (Point startPos) {
+
+        var subGrind = new HashSet<>(alphabet);
+
+        for (int row = startPos.x; row < startPos.x + getSubgridSize(); row++) {
+            for (int col = startPos.y; col < startPos.y + getSubgridSize(); col++) {
+                subGrind.remove(getField(row, col));
+            }
+        }
+
+        return subGrind.isEmpty();
+
+    }
+
+
+    private boolean checkColRowValid () {
+        for (int row = 0; row < table.length; row++) {
+
+            Set<Character> rowSet = new HashSet<>(alphabet);
+            Set<Character> colSet = new HashSet<>(alphabet);
+
+            for (int col = 0; col < table.length; col++) {
+                rowSet.remove(getField(row, col));
+                colSet.remove(getField(col, row));
+            }
+
+            if (!rowSet.isEmpty() || !colSet.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @return An empty Point, if point position is +1 of table length is done
+     */
     private Point getNextCellVoid () {
-        for (int i = 0; i < table.length; i++) {
-            for (int j = 0; j < table.length; j++) {
-                if (table[i][j] == (char) 0) {
-                    return new Point(i, j);
+        for (int row = 0; row < table.length; row++) {
+            for (int col = 0; col < table.length; col++) {
+                if (table[row][col] == (char) 0) {
+                    return new Point(row, col);
                 }
             }
         }
@@ -173,38 +257,33 @@ public final class Sudoku implements Serializable {
      * @param cell empty cell
      * @return List of Integer [x, y] where starts the miniSudoku
      */
-    private List<Integer> getStartChildPos (Point cell) {
+    private Point getStartChildPos (Point cell) {
 
-        List<Integer> startPos = new ArrayList<>();
-
-        int childSize = getChildSize();
+        int childSize = getSubgridSize();
         int startX = (cell.x < childSize) ? 0 : (cell.x / childSize) * childSize;
         int startY = (cell.y < childSize) ? 0 : (cell.y / childSize) * childSize;
 
-        startPos.add(startX);
-        startPos.add(startY);
-
-        return startPos;
+        return new Point(startX, startY);
     }
 
     /**
      * @param cell empty cell
      * @return child with contained cell
      */
-    private char[][] getChild (Point cell) {
-        char[][] child = new char[getChildSize()][getChildSize()];
+    private Sudoku getChild (Point cell) throws Exception {
+        char[][] child = new char[getSubgridSize()][getSubgridSize()];
 
-        List<Integer> startPositions = getStartChildPos(cell);
-        int startX = startPositions.get(0);
-        int startY = startPositions.get(1);
+        Point startPositions = getStartChildPos(cell);
+        int startX = startPositions.x;
+        int startY = startPositions.y;
 
-        for (int i = 0; i < getChildSize(); i++) {
-            for (int j = 0; j < getChildSize(); j++) {
-                child[i][j] = table[startX + i][startY + j];
+        for (int row = 0; row < getSubgridSize(); row++) {
+            for (int col = 0; col < getSubgridSize(); col++) {
+                child[row][col] = table[startX + row][startY + col];
             }
         }
 
-        return child;
+        return new Sudoku(child);
     }
 
     /**
@@ -242,12 +321,12 @@ public final class Sudoku implements Serializable {
     private Set<Character> getMiniPosibleChars (Point cell) {
         Set<Character> none = new HashSet<>(alphabet);
 
-        List<Integer> startPositions = getStartChildPos(cell);
-        int startX = startPositions.get(0);
-        int startY = startPositions.get(1);
+        Point startPositions = getStartChildPos(cell);
+        int startX = startPositions.x;
+        int startY = startPositions.y;
 
-        for (int i = startX; i < startX + getChildSize(); i++) {
-            for (int j = startY; j < startY + getChildSize(); j++) {
+        for (int i = startX; i < startX + getSubgridSize(); i++) {
+            for (int j = startY; j < startY + getSubgridSize(); j++) {
                 none.remove(getField(i, j));
             }
         }
@@ -274,15 +353,14 @@ public final class Sudoku implements Serializable {
 
         Set<Character> none = new HashSet<>(alphabet);
 
-        none.removeAll(emptyChildValues);
-        none.removeAll(emptyRowValues);
-        none.removeAll(emptyColValues);
+        none.retainAll(emptyRowValues);
+        none.retainAll(emptyColValues);
+        none.retainAll(emptyChildValues);
 
-        char[][] child = getChild(emptyCell);
-
+        Sudoku child = getChild(emptyCell);
         for (char c : none) {
-            child[emptyCell.x][emptyCell.y] = c;
-            posibleChilds.add(new Sudoku(child));
+            child.setField(emptyCell.x, emptyCell.y, c);
+            posibleChilds.add(child);
         }
 
         return posibleChilds;
@@ -293,8 +371,15 @@ public final class Sudoku implements Serializable {
      * @param pathName String path name to save Sudoku
      * @return (true / false) depending on if the game was saved or not
      */
+
     public boolean saveSudoku (String pathName) {
-        return false;
+        try (ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(pathName))) {
+            outputStream.writeObject(this);
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
@@ -303,12 +388,12 @@ public final class Sudoku implements Serializable {
         StringBuilder sb = new StringBuilder();
 
         for (char[] chars : table) {
-            for (int j = 0; j < table.length; j++) {
+            for (int col = 0; col < table.length; col++) {
 
-                if (chars[j] == (char) 0) {
+                if (chars[col] == (char) 0) {
                     sb.append(" ");
                 } else {
-                    sb.append(chars[j]);
+                    sb.append(chars[col]);
                 }
             }
             sb.append(System.lineSeparator());
